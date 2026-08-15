@@ -1,0 +1,5 @@
+# dsh-desktop-shell 本地包构建配置（仅用于在包自身安装 electron）
+packages:
+  - .
+onlyBuiltDependencies:
+  - electron

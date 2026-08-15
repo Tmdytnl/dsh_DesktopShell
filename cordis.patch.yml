@@ -1,0 +1,14 @@
+# dsh-desktop-shell — bundle layer.
+#
+# Both rows are installed DISABLED: a plain `dsh web` is completely unaffected
+# (no Electron window, no runtime behavior).
+#
+# Desktop App Mode is enabled for ONE launch with:
+#   dsh web --patch <installed>/launch/desktop-app.patch.yml --port 0
+- insert:
+    - id: desktop-shell
+      name: dsh-desktop-shell
+      disabled: true
+    - id: desktop-app
+      name: dsh-desktop-shell/app
+      disabled: true

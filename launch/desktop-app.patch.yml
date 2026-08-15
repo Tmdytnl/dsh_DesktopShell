@@ -1,0 +1,10 @@
+# Desktop App Mode overlay — enable both rows for THIS launch only.
+#
+#   dsh web --patch <installed>/launch/desktop-app.patch.yml --port 0
+#
+# Applied AFTER the bundle layers (and profile/home patches), so it overrides
+# the bundle's `disabled: true` for both rows.
+- id: desktop-shell
+  disabled: false
+- id: desktop-app
+  disabled: false

@@ -1,0 +1,48 @@
+{
+  "name": "dsh-desktop-shell",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Windows Electron desktop shell for DeepSeek Harness (DSH): a peer-level bundle that opens the live dsh web UI in a hardened native window and bridges the desktop lifecycle (open/close) to the DSH runtime.",
+  "type": "module",
+  "main": "lib/shell.js",
+  "exports": {
+    ".": "./lib/shell.js",
+    "./app": "./lib/app.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "launch",
+    "scripts",
+    "assets",
+    "cordis.patch.yml",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "dependencies": {
+    "electron": "43.4.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tmdytnl/dsh_DesktopShell.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Tmdytnl/dsh_DesktopShell/issues"
+  },
+  "homepage": "https://github.com/Tmdytnl/dsh_DesktopShell#readme",
+  "keywords": [
+    "dsh",
+    "deepseek",
+    "deepseek-harness",
+    "plugin",
+    "desktop",
+    "electron",
+    "windows"
+  ],
+  "license": "MIT"
+}
