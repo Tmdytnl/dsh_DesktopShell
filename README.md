@@ -1,6 +1,6 @@
 # dsh-desktop-shell
 
-A **peer-level DSH/Cordis bundle** that opens the live [DeepSeek Harness](https://github.com/bpc-oss) (DSH) web UI in a **native Windows Electron window** and bridges the desktop lifecycle (open / close) to the DSH runtime.
+A **peer-level DSH/Cordis bundle** that opens the live [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) web UI in a **native Windows Electron window** and bridges the desktop lifecycle (open / close) to the DSH runtime.
 
 The bundle ships **installed but disabled**: a plain `dsh web` launch is completely unaffected (no Electron window, no runtime behavior). Desktop App Mode is enabled per-launch via the official `--patch` mechanism.
 
@@ -13,7 +13,8 @@ The bundle ships **installed but disabled**: a plain `dsh web` launch is complet
 - **Windows desktop setup**: idempotent shortcut creation (`DeepSeek Harness.lnk`), hidden bootstrap, workspace-aware startup
 - **Fail-fast launcher/runtime checks**: missing Electron runtime, missing `dsh` CLI, or missing patch → one log line + one popup, then terminate
 - **Hardened Electron defaults**: no Node integration, context isolation, sandbox, strict navigation boundary
-- Ships with the DSH black-style mark as window/shortcut icon (transparent background)
+- **Clean native window chrome**: no icon / title in the top-left of the title bar (native frame is kept, so drag / resize / min / max / close stay fully native)
+- Ships with the DSH black-style mark as the desktop shortcut icon (multi-size, transparent background; cache-safe rollout via a stable asset name)
 
 ## Architecture
 
@@ -64,7 +65,7 @@ It is **not** responsible for (these belong to a separate DSH client/UI plugin):
 
 - Windows 10/11
 - Node.js (for setup scripts and tests)
-- [DSH](https://github.com/bpc-oss) installed globally (`dsh` CLI on `PATH`)
+- [DSH](https://github.com/deepseek-ai/deepseek-harness) installed globally (`dsh` CLI on `PATH`)
 - pnpm (for install / pack workflows)
 
 ## Installation
@@ -100,6 +101,34 @@ scripts\install-desktop.cmd --help
 - Only the `web` profile is supported; any other profile fails before any side effect
 - Re-running updates the same `DeepSeek Harness.lnk` — never a duplicate
 
+## Failure isolation
+
+`dsh-desktop-shell` is an **optional desktop enhancement layer**, not a runtime
+dependency of DSH:
+
+- A plain `dsh web` launch never activates the Desktop rows (`desktop-shell` /
+  `desktop-app` are installed `disabled: true`), so it never loads the Electron
+  path and never starts a window.
+- Desktop App Mode is enabled only for a single launch via
+  `--patch launch/desktop-app.patch.yml`.
+- Failures in the desktop launcher / Electron runtime / desktop-mode entries
+  are confined to the Desktop launch path. Verified boundaries:
+
+  | Failure | Plain `dsh web` after it |
+  |---|---|
+  | Desktop launcher (`desktop-launch.cmd` / `launch-hidden.vbs`) broken | still works |
+  | Electron runtime missing | still works |
+  | Electron child crash / abnormal exit | still works (Desktop runtime exits per lifecycle) |
+  | `desktop-shell` / `desktop-app` activation failure (Desktop mode only) | still works |
+  | Corrupted disabled entry module (`lib/shell.js` / `lib/app.js`) | still works (disabled rows are lazy / isolated) |
+
+  A desktop failure therefore never leaves persistent state that prevents a
+  later plain `dsh web` session. **Framework-level boundary:** DSH/Cordis
+  itself still parses the profile's bundle metadata; a malformed
+  `package.json` / bundle patch can break the whole profile boot, exactly as
+  with any other installed plugin. This bundle does not (and cannot) repair
+  the plugin loader.
+
 ## Usage
 
 Double-click **DeepSeek Harness** on the desktop. A hidden bootstrap launches `dsh web` with the desktop-app patch on a random port, the Electron window opens over the real DSH UI, and closing the window shuts the whole runtime down cleanly.
@@ -133,7 +162,9 @@ scripts/
   generate-icon.mjs       icon generation (dev-time tool)
   create-shortcut.vbs     shortcut COM helper
 assets/
-  icon.ico                window + shortcut icon (DSH black-style mark)
+  favicon-source.svg       official DSH favicon copy (icon source)
+  icon-black.ico           desktop shortcut icon (multi-size black DSH mark)
+  icon-window.ico          window icon (fully transparent → no title-bar icon)
 test/
   lifecycle.test.mjs      lifecycle unit tests
   setup.test.mjs          setup / argument-parser unit tests
@@ -144,9 +175,10 @@ test/
 ```cmd
 node test\lifecycle.test.mjs
 node test\setup.test.mjs
+node test\isolation.test.mjs
 ```
 
-Current baseline: **lifecycle 20/20 PASS**, **setup 19/19 PASS** (Node built-in `node:test`, no framework).
+Current baseline: **lifecycle 20/20 PASS**, **setup 19/19 PASS**, **isolation 3/3 PASS** (Node built-in `node:test`, no framework). `isolation.test.mjs` builds throwaway profiles under a temp `DSH_HOME` and verifies the Desktop-vs-plain-DSH failure boundary (I1: plain `dsh web` keeps Desktop rows disabled and spawns no Electron; I7: a corrupted disabled desktop entry does not break plain `dsh web`; I8: a malformed bundle patch is a documented loader-level boundary).
 
 ## Scope / Non-goals
 

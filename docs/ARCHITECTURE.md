@@ -20,16 +20,21 @@ launch/
   launch-hidden.vbs       hidden bootstrap (runs desktop-launch.cmd, exits immediately)
 scripts/
   install-desktop.mjs/.cmd   desktop setup: workspace validation, runtime prepare,
-                             idempotent shortcut creation
+                             idempotent shortcut creation (IconLocation =
+                             assets/icon-black.ico — cache-safe stable name)
   ensure-electron-runtime.mjs/.cmd  runtime check (--check, default) / prepare (--prepare)
   setup-args.mjs          shared option parser & validation (no deps)
   create-shortcut.vbs     COM shortcut helper
-  generate-icon.mjs       dev-time icon generation (Edge headless)
+  generate-icon.mjs       dev-time icon generation (self-contained SVG rasterizer;
+                          writes icon-black.ico + icon-window.ico)
 assets/
-  icon.ico                window + shortcut icon (DSH black-style mark, transparent bg)
+  favicon-source.svg      official DSH favicon copy (icon source)
+  icon-black.ico          desktop shortcut icon (multi-size black DSH mark)
+  icon-window.ico         window icon (fully transparent → no title-bar icon)
 test/
   lifecycle.test.mjs      lifecycle unit tests (20/20)
   setup.test.mjs          setup/parser unit tests (19/19)
+  isolation.test.mjs      Desktop-vs-plain-DSH isolation tests (0.1.1)
 ```
 
 ## Bundle rows
@@ -53,6 +58,45 @@ crash / signal                  → crashed / abnormal-exit → ctx.appExit(non-
 ```
 
 Close intent is **per-child**: `_closing` resets when the child's lifecycle ends, so `programmatic-close` never leaks into the next child (tests F1/F2). After dispose, `open()` refuses to relaunch.
+
+## Failure isolation boundary
+
+`dsh-desktop-shell` is an **optional** Desktop enhancement layer, never a base
+runtime dependency of DSH:
+
+- Both rows are `disabled: true` in the bundle layer; plain `dsh web` never
+  activates them and never resolves the Electron path.
+- Desktop App Mode is enabled for ONE launch only, via
+  `--patch launch/desktop-app.patch.yml` (overrides the bundle's disabled
+  rows). No profile file is permanently changed by a Desktop launch.
+- Launcher / Electron-runtime / Electron-child / desktop-mode entry failures
+  stay inside the Desktop launch path; the Desktop runtime exits per its
+  lifecycle (no hidden backend is left behind) and the next plain `dsh web`
+  is unaffected.
+- Other DSH plugins (e.g. `dsh-deepseek-quota`) have **no hard dependency**
+  on DesktopShell: nothing injects a `desktopShell` service reference except
+  the `desktop-app` coordinator itself, and DesktopShell has no quota /
+  other-plugin awareness.
+- Framework-level boundary: DSH/Cordis parses every installed bundle's
+  metadata at profile boot. A malformed `package.json` / bundle patch breaks
+  the whole profile boot — that is the plugin-loader layer's boundary, not
+  something this bundle can or should repair.
+
+## Window chrome (0.1.1)
+
+The window keeps the **native Windows frame** (drag / resize / min / max /
+close stay 100% native) with a deliberately empty title bar:
+
+- `page-title-updated` is prevented → the DSH page title
+  (`"<session> — DeepSeek Harness"`) never propagates into the title bar.
+- `title: ""` → no title text.
+- `icon: assets/icon-window.ico` (fully transparent) → no icon in the
+  title bar.
+- Trade-off: on Windows the title-bar icon and the taskbar/alt-tab icon are
+  the same `WM_SETICON`, so the running window's taskbar/alt-tab icon is also
+  transparent. The desktop shortcut keeps the black mark
+  (`assets/icon-black.ico` via IconLocation). No custom title bar / HTML UI /
+  window-control re-implementation was introduced.
 
 ## Runtime chain (Windows)
 

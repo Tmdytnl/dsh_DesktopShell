@@ -19,7 +19,7 @@
  * The shortcut is the ONLY owner of the working directory (workspace):
  *   Target        = wscript.exe "<pkgRoot>\launch\launch-hidden.vbs"
  *   WorkingDir    = resolved workspace
- *   IconLocation  = <pkgRoot>\assets\icon.ico
+ *   IconLocation  = <pkgRoot>\assets\icon-black.ico
  *   Description   = "DeepSeek Harness Desktop"
  *
  * Idempotent: re-running updates the same shortcut; nothing duplicates.
@@ -108,8 +108,8 @@ const ensure = join(PKG_ROOT, "scripts", "ensure-electron-runtime.mjs");
 const prepared = spawnSync(process.execPath, [ensure, "--prepare"], { stdio: "inherit" });
 if (prepared.status !== 0) fail("Electron runtime could not be prepared — see output above");
 
-// ---- 8. icon asset ----
-const iconPath = join(installedRoot, "assets", "icon.ico");
+// ---- 8. icon asset (cache-safe name: icon-black.ico, NOT the legacy icon.ico) ----
+const iconPath = join(installedRoot, "assets", "icon-black.ico");
 if (!existsSync(iconPath)) fail(`icon missing at ${iconPath} (run scripts/generate-icon.mjs once)`);
 ok(`icon ready: ${iconPath}`);
 
