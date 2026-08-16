@@ -1,6 +1,6 @@
 {
   "name": "dsh-desktop-shell",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Windows Electron desktop shell for DeepSeek Harness (DSH): a peer-level bundle that opens the live dsh web UI in a hardened native window and bridges the desktop lifecycle (open/close) to the DSH runtime.",
   "type": "module",

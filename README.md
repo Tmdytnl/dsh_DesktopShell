@@ -13,8 +13,8 @@ The bundle ships **installed but disabled**: a plain `dsh web` launch is complet
 - **Windows desktop setup**: idempotent shortcut creation (`DeepSeek Harness.lnk`), hidden bootstrap, workspace-aware startup
 - **Fail-fast launcher/runtime checks**: missing Electron runtime, missing `dsh` CLI, or missing patch → one log line + one popup, then terminate
 - **Hardened Electron defaults**: no Node integration, context isolation, sandbox, strict navigation boundary
-- **Clean native window chrome**: no icon / title in the top-left of the title bar (native frame is kept, so drag / resize / min / max / close stay fully native)
-- Ships with the DSH black-style mark as the desktop shortcut icon (multi-size, transparent background; cache-safe rollout via a stable asset name)
+- **Clean native window chrome**: the native title bar is hidden with Electron's official `titleBarStyle: "hidden"` + `titleBarOverlay` (Window Controls Overlay) — no icon / title / session title in the top-left, native min / max / close buttons preserved, native resize kept
+- Ships with the DSH black-style mark as the single app icon (`assets/icon-black.ico`, multi-size, transparent background) used by the desktop shortcut, the BrowserWindow, the Windows taskbar and Alt+Tab
 
 ## Architecture
 
@@ -163,8 +163,8 @@ scripts/
   create-shortcut.vbs     shortcut COM helper
 assets/
   favicon-source.svg       official DSH favicon copy (icon source)
-  icon-black.ico           desktop shortcut icon (multi-size black DSH mark)
-  icon-window.ico          window icon (fully transparent → no title-bar icon)
+  icon-black.ico           the single DSH app icon (multi-size black DSH mark);
+                           desktop shortcut + BrowserWindow + taskbar + Alt+Tab
 test/
   lifecycle.test.mjs      lifecycle unit tests
   setup.test.mjs          setup / argument-parser unit tests
@@ -176,9 +176,11 @@ test/
 node test\lifecycle.test.mjs
 node test\setup.test.mjs
 node test\isolation.test.mjs
+node test\window.test.mjs
+node test\icon.test.mjs
 ```
 
-Current baseline: **lifecycle 20/20 PASS**, **setup 19/19 PASS**, **isolation 3/3 PASS** (Node built-in `node:test`, no framework). `isolation.test.mjs` builds throwaway profiles under a temp `DSH_HOME` and verifies the Desktop-vs-plain-DSH failure boundary (I1: plain `dsh web` keeps Desktop rows disabled and spawns no Electron; I7: a corrupted disabled desktop entry does not break plain `dsh web`; I8: a malformed bundle patch is a documented loader-level boundary).
+Current baseline: **lifecycle 20/20 PASS**, **setup 19/19 PASS**, **isolation 3/3 PASS**, **window 5/5 PASS**, **icon 3/3 PASS** (Node built-in `node:test`, no framework). `isolation.test.mjs` builds throwaway profiles under a temp `DSH_HOME` and verifies the Desktop-vs-plain-DSH failure boundary (I1: plain `dsh web` keeps Desktop rows disabled and spawns no owned Electron; I7: a corrupted disabled desktop entry does not break plain `dsh web`; I8: a malformed bundle patch is a documented loader-level boundary). `window.test.mjs` and `icon.test.mjs` guard the 0.1.2 taskbar-icon fix (BrowserWindow must use `icon-black.ico`; the transparent-icon workaround must stay gone).
 
 ## Scope / Non-goals
 

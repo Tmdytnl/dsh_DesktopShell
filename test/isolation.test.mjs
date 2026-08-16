@@ -1,6 +1,6 @@
 /**
- * dsh-desktop-shell — Desktop-vs-plain-DSH isolation tests (v0.1.1).
- * Run: node --test test/isolation.test.mjs
+ * dsh-desktop-shell — Desktop-vs-plain-DSH isolation tests (v0.1.2).
+ * Run: node test/isolation.test.mjs
  *
  * These verify the FAILURE-ISOLATION contract without touching the live
  * profile: every test builds a throwaway DSH_HOME (junctions to the real
@@ -8,13 +8,23 @@
  * boots `dsh web` on it, and cleans up afterwards.
  *
  * Contract under test:
- *   - I1  plain `dsh web` boots; Desktop rows stay disabled; no Electron child;
- *         the peer quota plugin still activates
+ *   - I1  plain `dsh web` boots; Desktop rows stay disabled; no OWNED
+ *         Electron child (v0.1.2: electron attribution — unrelated Electron
+ *         apps such as VS Code/Discord no longer affect the assertion); the
+ *         peer quota plugin is verified only when it is actually installed
  *   - I7  a corrupted DISABLED desktop entry (lib/shell.js) does NOT break
  *         plain `dsh web` (disabled rows are lazy / isolated)
  *   - I8  a malformed bundle patch (cordis.patch.yml) is a DSH/Cordis
  *         loader-level hard boundary: profile boot fails — this is the
  *         documented framework boundary, not something this bundle repairs
+ *
+ * v0.1.2 stability fixes:
+ *   - ports are EPHEMERAL: the web server binds --port 0 and the actual URL
+ *     is read back from its stdout file (no hard-coded test ports)
+ *   - the Electron assertion counts only processes whose command line
+ *     references this package's Electron main (no global electron.exe count)
+ *   - the quota peer-plugin assertion is skipped when dsh-deepseek-quota is
+ *     not installed (an optional peer plugin is not a hard test dependency)
  *
  * Unit-level Desktop failure paths (loader fail-closed, appExit decisions,
  * Electron-open rejection) are covered by lifecycle.test.mjs (T1/T4a/T4b).
@@ -37,6 +47,10 @@ const DEFAULT_HOME = join(homedir(), ".dsh");
 const REAL_FLAT_FALLBACK = join(DEFAULT_HOME, "profiles", "node_modules");
 const REAL_WEB_PROFILE = join(DEFAULT_HOME, "profiles", "web");
 const REAL_QUOTA = join(REAL_WEB_PROFILE, "node_modules", "dsh-deepseek-quota");
+
+/** Command-line marker of an Electron process OWNED by this package: the
+ *  spawned main's argv contains <pkg>\lib\electron\main.js. */
+const OWNED_ELECTRON_MARKER = `${sep}lib${sep}electron${sep}main.js`;
 
 /** Resolve the real dsh CLI entry (node bin) through PATH via `where`. */
 function resolveDshCli() {
@@ -69,32 +83,6 @@ const preconditions = {
 function junktion(target, link) {
   const r = spawnSync("cmd", ["/c", "mklink", "/J", link, target], { stdio: "ignore" });
   if (r.status !== 0) throw new Error(`could not junction ${link} -> ${target}`);
-}
-
-/** Stop a booted dsh web child and WAIT for its exit (junctions must be
- *  releasable before the temp home can be removed). */
-function stopChild(child, timeoutMs = 15000) {
-  return new Promise((resolve) => {
-    let done = false;
-    const finish = () => { if (!done) { done = true; resolve(); } };
-    if (child === null || child.exitCode !== null) return finish();
-    child.once("exit", finish);
-    try { child.kill(); } catch { /* already gone */ }
-    setTimeout(finish, timeoutMs).unref();
-  });
-}
-
-/** Remove the temp home; junction handles can lag the child exit — retry. */
-async function removeHome(home) {
-  for (let attempt = 0; attempt < 10; attempt++) {
-    try {
-      rmSync(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
-      return;
-    } catch (error) {
-      if (error.code !== "EPERM" && error.code !== "EBUSY") throw error;
-      await new Promise((r) => setTimeout(r, 500));
-    }
-  }
 }
 
 /** Build one throwaway DSH_HOME with a `web` profile. `desktopShellDir` is
@@ -170,15 +158,24 @@ function runDsh(args, home, { timeoutMs = 60000 } = {}) {
   }
 }
 
-/** Boot `dsh web` on the temp home; resolves with the child on HTTP 200. */
-function bootWeb(home, port, { timeoutMs = 150000 } = {}) {
+/** Boot `dsh web` (ephemeral port 0) on the temp home. Resolves with
+ *  { child, port } once the web UI answers HTTP 200 on the actual port
+ *  (read back from the child's stdout file — no hard-coded ports). */
+function bootWeb(home, { timeoutMs = 180000 } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(dshCli, dshCliArgs(["web", "--host", "127.0.0.1", `--port=${port}`]), {
+    const outFile = join(home, "web.out");
+    const errFile = join(home, "web.err");
+    const outFd = openSync(outFile, "w");
+    const errFd = openSync(errFile, "w");
+    const child = spawn(dshCli, dshCliArgs(["web", "--host", "127.0.0.1", "--port=0"]), {
       cwd: home,
       env: { ...process.env, DSH_HOME: home },
-      stdio: "ignore",
+      stdio: ["ignore", outFd, errFd],
       windowsHide: true
     });
+    closeSync(outFd);
+    closeSync(errFd);
+
     const started = Date.now();
     let settled = false;
     const finish = (err, value) => {
@@ -193,32 +190,79 @@ function bootWeb(home, port, { timeoutMs = 150000 } = {}) {
       }
     };
     const timer = setInterval(() => {
-      http.get(`http://127.0.0.1:${port}/`, (res) => {
-        if (res.statusCode === 200) finish(null, child);
-        else res.resume();
-      }).on("error", () => { /* not up yet */ });
-      if (Date.now() - started > timeoutMs) {
-        finish(new Error(`dsh web did not answer on :${port} within ${timeoutMs}ms`));
+      let port = null;
+      try {
+        const text = readFileSync(outFile, "utf8");
+        const m = text.match(/http:\/\/127\.0\.0\.1:(\d+)/);
+        if (m) port = Number(m[1]);
+      } catch { /* file not ready */ }
+      if (port !== null) {
+        http.get(`http://127.0.0.1:${port}/`, (res) => {
+          if (res.statusCode === 200) finish(null, { child, port });
+          else res.resume();
+        }).on("error", () => { /* not up yet */ });
       }
-    }, 1500);
+      if (Date.now() - started > timeoutMs) {
+        finish(new Error(`dsh web did not answer within ${timeoutMs}ms`));
+      }
+    }, 1200);
     child.on("exit", (code) => {
-      finish(new Error(`dsh web exited early (code=${code}) before answering on :${port}`));
+      finish(new Error(`dsh web exited early (code=${code}) before answering`));
     });
   });
 }
 
-/** Count running electron.exe processes (via tasklist -> file, no pipes). */
-function countElectron() {
-  const out = join(tmpdir(), `dsh-iso-tasklist-${process.pid}.txt`);
+/** Stop a booted dsh web child and WAIT for its exit (junctions must be
+ *  releasable before the temp home can be removed). */
+function stopChild(child, timeoutMs = 15000) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => { if (!done) { done = true; resolve(); } };
+    if (child === null || child.exitCode !== null) return finish();
+    child.once("exit", finish);
+    try { child.kill(); } catch { /* already gone */ }
+    setTimeout(finish, timeoutMs).unref();
+  });
+}
+
+/** Remove the temp home; junction handles can lag the child exit — retry. */
+async function removeHome(home) {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    try {
+      rmSync(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+      return;
+    } catch (error) {
+      if (error.code !== "EPERM" && error.code !== "EBUSY") throw error;
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  }
+}
+
+/** Count electron.exe processes OWNED by this package (command line references
+ *  <pkg>\lib\electron\main.js). Unrelated Electron apps are ignored. */
+function countOwnedElectron() {
+  const ps1 = join(tmpdir(), `dsh-iso-elcount-${process.pid}.ps1`);
+  const out = join(tmpdir(), `dsh-iso-elcount-${process.pid}.txt`);
+  writeFileSync(ps1, `$ErrorActionPreference = "SilentlyContinue"
+$marker = $args[0]
+$procs = Get-CimInstance Win32_Process -Filter "Name='electron.exe'"
+$owned = @($procs | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($marker) })
+Write-Output $owned.Count
+`);
   const fd = openSync(out, "w");
   try {
-    spawnSync("tasklist", ["/FI", "IMAGENAME eq electron.exe", "/FO", "CSV", "/NH"], { stdio: ["ignore", fd, "ignore"] });
+    spawnSync("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps1, OWNED_ELECTRON_MARKER], {
+      stdio: ["ignore", fd, "ignore"],
+      timeout: 30000
+    });
   } finally {
     closeSync(fd);
   }
-  const text = readFileSync(out, "utf8");
+  const text = readFileSync(out, "utf8").trim();
+  rmSync(ps1, { force: true });
   rmSync(out, { force: true });
-  return text.split(/\r?\n/).filter((l) => l.includes("electron.exe")).length;
+  const n = Number.parseInt(text, 10);
+  return Number.isNaN(n) ? 0 : n;
 }
 
 /** Compose the tree and assert the Desktop rows are present AND disabled. */
@@ -237,25 +281,29 @@ const T = (name, fn, opts = {}) => test(name, {
 }, fn);
 
 // ---------------------------------------------------------------------------
-// I1: plain `dsh web` — Desktop rows disabled, no Electron, web UI + quota
+// I1: plain `dsh web` — Desktop rows disabled, no Electron, web UI + quota*
 // ---------------------------------------------------------------------------
-T("I1 plain dsh web: Desktop rows disabled, no Electron child, web + quota serve", async () => {
+T("I1 plain dsh web: Desktop rows disabled, no owned Electron child, web serves (+ quota when installed)", async () => {
   const env = makeHome();
   try {
     assertDesktopDisabled(env.home);
-    const before = countElectron();
-    const child = await bootWeb(env.home, 39171, { timeoutMs: 180000 });
+    const before = countOwnedElectron();
+    const { child, port } = await bootWeb(env.home);
     try {
-      assert.equal(countElectron(), before, "plain dsh web must not spawn any Electron child");
-      // quota route registered by the peer plugin: 200 or 503 (no credentials
-      // in the throwaway home) — anything but 404 proves the plugin activated
-      const quota = await new Promise((resolve, reject) => {
-        http.get({ host: "127.0.0.1", port: 39171, path: "/api/deepseek-balance" }, (res) => {
-          res.resume();
-          resolve(res.statusCode);
-        }).on("error", reject);
-      });
-      assert.ok(quota !== 404, `quota endpoint must be registered (got ${quota})`);
+      assert.equal(countOwnedElectron(), before, "plain dsh web must not spawn any owned Electron child");
+      if (existsSync(REAL_QUOTA)) {
+        // peer plugin installed → the quota route must be registered (200 or
+        // 503 when the throwaway home has no credentials; never 404)
+        const quota = await new Promise((resolve, reject) => {
+          http.get({ host: "127.0.0.1", port, path: "/api/deepseek-balance" }, (res) => {
+            res.resume();
+            resolve(res.statusCode);
+          }).on("error", reject);
+        });
+        assert.ok(quota !== 404, `quota endpoint must be registered (got ${quota})`);
+      } else {
+        test.skip("peer-plugin assertion skipped: dsh-deepseek-quota is not installed");
+      }
     } finally {
       await stopChild(child);
     }
@@ -274,10 +322,10 @@ T("I7 corrupted disabled lib/shell.js: plain dsh web still boots", async () => {
     writeFileSync(join(pkg, "lib", "shell.js"), "export const broken = ( => { syntax error !!!");
     const env = makeHome({ desktopShellDir: pkg });
     try {
-      const before = countElectron();
-      const child = await bootWeb(env.home, 39172, { timeoutMs: 180000 });
+      const before = countOwnedElectron();
+      const { child } = await bootWeb(env.home);
       try {
-        assert.equal(countElectron(), before, "no Electron child after boot");
+        assert.equal(countOwnedElectron(), before, "no owned Electron child after boot");
       } finally {
         await stopChild(child);
       }

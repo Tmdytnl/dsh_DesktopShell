@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.1.2 - 2026-08-16
+
+Taskbar / Alt+Tab icon fix and test hardening.
+
+- Fix running Windows taskbar / Alt+Tab icon regression introduced in 0.1.1:
+  the BrowserWindow now uses the real black DSH application icon
+  (`assets/icon-black.ico`) — taskbar, Alt+Tab and the running-window icon
+  show the DSH mark again.
+- Remove the transparent-window-icon workaround: `assets/icon-window.ico` is
+  deleted and its generator code is gone.
+- Hide the left-side native chrome (icon + title + page/session title) through
+  Electron's official Windows title-bar mechanism: `titleBarStyle: "hidden"`
+  with `titleBarOverlay` — native min / max / close buttons are preserved.
+- Preserve window dragging: the shell injects a thin (4px) transparent
+  `-webkit-app-region: drag` strip at the page's top edge (container-level;
+  DSH UI is untouched and interactive elements are not blocked).
+- Harden isolation tests against port / process / environment flakiness:
+  ephemeral ports (web server binds `--port 0`), Electron assertions count
+  only processes owned by this package, and the optional quota peer-plugin
+  assertion is skipped when dsh-deepseek-quota is not installed.
+- Add window-chrome and icon regression suites
+  (`test/window.test.mjs`, `test/icon.test.mjs`).
+- Clean stale version comments / documentation (no more 0.1.1/0.1.5 mixed
+  markers in current code and docs).
+
 ## 0.1.1 - 2026-08-16
 
 Usability / isolation update.

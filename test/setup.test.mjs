@@ -1,5 +1,5 @@
 /**
- * dsh-desktop-shell — setup/launcher layer unit tests (v0.1.4).
+ * dsh-desktop-shell — setup/launcher layer unit tests (v0.1.2).
  * Run: node test/setup.test.mjs        (in-process, no Windows behavior)
  *
  * Kept SEPARATE from lifecycle.test.mjs on purpose: these test the pure

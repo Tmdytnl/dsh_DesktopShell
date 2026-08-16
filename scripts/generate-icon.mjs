@@ -2,7 +2,13 @@
  * dsh-desktop-shell — generate assets/icon-black.ico from the OFFICIAL DSH
  * favicon (assets/favicon-source.svg).
  *
- * v0.1.1: multi-size, cache-safe rollout. Produces a NEW stable resource name
+ * v0.1.2: single output — the real black DSH app icon. (v0.1.1 also generated
+ * a transparent `icon-window.ico` used to hide the native title-bar icon; that
+ * workaround was removed in 0.1.2 because it broke the taskbar/Alt+Tab icon —
+ * the title bar is now hidden with Electron's `titleBarStyle: hidden` +
+ * `titleBarOverlay`, which needs no icon tricks.)
+ *
+ * Multi-size, cache-safe: produces a NEW stable resource name
  * (assets/icon-black.ico) so the desktop shortcut's IconLocation changes and
  * Windows does not keep serving the old cached icon. Contains the common
  * Windows sizes:
@@ -19,12 +25,7 @@
  * BMP (BGRA) entries for maximum shell compatibility; 256 is a PNG entry
  * (Vista+ PNG-in-ICO).
  *
- * Outputs:
- *   assets/icon-black.ico    multi-size black DSH mark — desktop shortcut icon
- *   assets/icon-window.ico   fully transparent window icon — hides the icon
- *                            in the native title bar of the desktop window
- *
- * This is a DEV-TIME tool only. The produced ICOs are the runtime artifacts;
+ * This is a DEV-TIME tool only. The produced ICO is the runtime artifact;
  * nothing at launch time runs this script.
  *
  * Usage: node scripts/generate-icon.mjs
@@ -37,9 +38,7 @@ import { deflateSync, inflateSync } from "node:zlib";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SVG = join(ROOT, "assets", "favicon-source.svg");
 const OUT = join(ROOT, "assets", "icon-black.ico");
-const OUT_WINDOW = join(ROOT, "assets", "icon-window.ico");
 const SIZES = [16, 24, 32, 48, 64, 128, 256];
-const WINDOW_SIZES = [16, 24, 32, 48, 256];
 const VIEWBOX = 50;            // favicon-source.svg viewBox = 0 0 50 50
 const SUPERSAMPLE = 3;         // render at size*SS, box-downsample for AA
 
@@ -362,10 +361,8 @@ export function decodePngRgba(buf) {
 // ICO packing (classic BMP entries for <256, PNG entry for 256)
 // ---------------------------------------------------------------------------
 
-/** Build a classic 32-bit BMP DIB (BITMAPINFOHEADER + bottom-up BGRA + AND mask).
- *  `maskOnes` makes the AND mask all-1s (fully masked out = fully transparent
- *  even when a renderer ignores the alpha channel) — used for the window icon. */
-function bmpDib(size, rgbaTopDown, maskOnes = false) {
+/** Build a classic 32-bit BMP DIB (BITMAPINFOHEADER + bottom-up BGRA + AND mask). */
+function bmpDib(size, rgbaTopDown) {
   const header = Buffer.alloc(40);
   header.writeUInt32LE(40, 0);          // biSize
   header.writeInt32LE(size, 4);         // biWidth
@@ -386,13 +383,12 @@ function bmpDib(size, rgbaTopDown, maskOnes = false) {
     }
   }
   const andStride = ((size + 31) >> 5) * 4;
-  const andMask = Buffer.alloc(andStride * size, maskOnes ? 0xff : 0);
+  const andMask = Buffer.alloc(andStride * size, 0);
   return Buffer.concat([header, xor, andMask]);
 }
 
-/** Pack rendered RGBA images into a multi-size ICO. `maskOnes` applies an
- *  all-1s AND mask to the BMP entries (fully transparent for the window icon). */
-function packIco(sizes, images, maskOnes = false) {
+/** Pack rendered RGBA images into a multi-size ICO. */
+function packIco(sizes, images) {
   const count = sizes.length;
   const header = Buffer.alloc(6);
   header.writeUInt16LE(0, 0);
@@ -412,7 +408,7 @@ function packIco(sizes, images, maskOnes = false) {
     entry.writeUInt16LE(32, 6);
     const block = size === 256
       ? encodePngRgba(size, images[i].rgba)
-      : bmpDib(size, images[i].rgba, maskOnes);
+      : bmpDib(size, images[i].rgba);
     entry.writeUInt32LE(block.length, 8);
     entry.writeUInt32LE(offset, 12);
     entries.push(entry);
@@ -446,18 +442,6 @@ export function main() {
 
   writeFileSync(OUT, packIco(SIZES, images));
   console.log(`dsh-desktop-shell: wrote ${OUT} (${SIZES.length} sizes: ${SIZES.join(",")}), DSH black-style mark, transparent background`);
-
-  // assets/icon-window.ico: fully TRANSPARENT window icon. The desktop window
-  // uses it so the native title bar renders NO icon at the top-left (v0.1.1
-  // "clean chrome" requirement). The BMP entries carry an all-1s AND mask so
-  // the shell renders NOTHING even where it ignores the alpha channel.
-  const blank = [];
-  for (const size of WINDOW_SIZES) {
-    const rgba = Buffer.alloc(size * size * 4, 0); // fully transparent
-    blank.push({ width: size, height: size, rgba });
-  }
-  writeFileSync(OUT_WINDOW, packIco(WINDOW_SIZES, blank, true));
-  console.log(`dsh-desktop-shell: wrote ${OUT_WINDOW} (transparent window icon, ${WINDOW_SIZES.length} sizes)`);
 }
 
 if (isMain) main();

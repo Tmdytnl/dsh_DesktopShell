@@ -1,8 +1,8 @@
 /**
- * dsh-desktop-shell — v0.1 lifecycle tests (node:test, no framework).
- * Run: node --test test/
- * v0.1.2: + F1 (programmatic-close must not leak into the next child),
- *          + F2 (new child starts with a clean close intent).
+ * dsh-desktop-shell — lifecycle tests (node:test, no framework).
+ * Run: node test/lifecycle.test.mjs
+ * Includes F1 (programmatic-close must not leak into the next child) and
+ * F2 (new child starts with a clean close intent).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

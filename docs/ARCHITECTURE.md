@@ -26,15 +26,17 @@ scripts/
   setup-args.mjs          shared option parser & validation (no deps)
   create-shortcut.vbs     COM shortcut helper
   generate-icon.mjs       dev-time icon generation (self-contained SVG rasterizer;
-                          writes icon-black.ico + icon-window.ico)
+                          writes icon-black.ico)
 assets/
   favicon-source.svg      official DSH favicon copy (icon source)
-  icon-black.ico          desktop shortcut icon (multi-size black DSH mark)
-  icon-window.ico         window icon (fully transparent → no title-bar icon)
+  icon-black.ico          the single DSH app icon (multi-size black DSH mark);
+                          desktop shortcut + BrowserWindow + taskbar + Alt+Tab
 test/
   lifecycle.test.mjs      lifecycle unit tests (20/20)
   setup.test.mjs          setup/parser unit tests (19/19)
-  isolation.test.mjs      Desktop-vs-plain-DSH isolation tests (0.1.1)
+  isolation.test.mjs      Desktop-vs-plain-DSH isolation tests (3/3)
+  window.test.mjs         BrowserWindow chrome-config regression tests (5/5)
+  icon.test.mjs           icon-asset regression tests (3/3)
 ```
 
 ## Bundle rows
@@ -82,21 +84,36 @@ runtime dependency of DSH:
   the whole profile boot — that is the plugin-loader layer's boundary, not
   something this bundle can or should repair.
 
-## Window chrome (0.1.1)
+## Window chrome (0.1.2)
 
-The window keeps the **native Windows frame** (drag / resize / min / max /
-close stay 100% native) with a deliberately empty title bar:
+The window hides the native title bar with Electron's **official Windows
+mechanism** and keeps the **real DSH app icon**:
 
+- `icon: assets/icon-black.ico` → the Windows taskbar, Alt+Tab and the
+  running-window icon show the DSH mark. (0.1.1's transparent
+  `icon-window.ico` workaround is removed: it hid the title-bar icon but broke
+  the taskbar/Alt+Tab icon — `assets/icon-window.ico` is deleted and its
+  generator code is gone.)
+- `titleBarStyle: "hidden"` + `titleBarOverlay` (Window Controls Overlay):
+  the native title bar (icon + title text) is not drawn at all, while the
+  native min / max / close buttons remain (OS-drawn, top-right). No custom
+  HTML title bar / buttons were introduced.
 - `page-title-updated` is prevented → the DSH page title
-  (`"<session> — DeepSeek Harness"`) never propagates into the title bar.
-- `title: ""` → no title text.
-- `icon: assets/icon-window.ico` (fully transparent) → no icon in the
-  title bar.
-- Trade-off: on Windows the title-bar icon and the taskbar/alt-tab icon are
-  the same `WM_SETICON`, so the running window's taskbar/alt-tab icon is also
-  transparent. The desktop shortcut keeps the black mark
-  (`assets/icon-black.ico` via IconLocation). No custom title bar / HTML UI /
-  window-control re-implementation was introduced.
+  (`"<session> — DeepSeek Harness"`) never becomes the window title; the
+  static `title: "DeepSeek Harness"` is used for the Alt+Tab / taskbar label.
+- Resize / maximize / restore / minimize stay native (`thickFrame`), including
+  `minWidth` / `minHeight`.
+- **Drag**: a hidden title bar has no native drag area, so the shell injects a
+  thin (4px) transparent `-webkit-app-region: drag` strip at the very top edge
+  of the page (`webContents.executeJavaScript` after load — container-level;
+  DSH source files are untouched and interactive elements sit below the
+  strip). The overlay's symbol color is matched to the page's actual color
+  scheme after load so the native buttons stay visible in dark/light themes.
+- Icon architecture (single source):
+  `desktop shortcut IconLocation` = `icon-black.ico`,
+  `BrowserWindow icon` = `icon-black.ico`,
+  `Windows taskbar` = window icon (icon-black.ico),
+  `Alt+Tab` = window icon (icon-black.ico).
 
 ## Runtime chain (Windows)
 
