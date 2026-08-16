@@ -1,5 +1,5 @@
 /**
- * dsh-desktop-shell — Desktop-vs-plain-DSH isolation tests (v0.1.2).
+ * dsh-desktop-shell — Desktop-vs-plain-DSH isolation tests (v0.1.3).
  * Run: node test/isolation.test.mjs
  *
  * These verify the FAILURE-ISOLATION contract without touching the live

@@ -13,7 +13,7 @@ The bundle ships **installed but disabled**: a plain `dsh web` launch is complet
 - **Windows desktop setup**: idempotent shortcut creation (`DeepSeek Harness.lnk`), hidden bootstrap, workspace-aware startup
 - **Fail-fast launcher/runtime checks**: missing Electron runtime, missing `dsh` CLI, or missing patch → one log line + one popup, then terminate
 - **Hardened Electron defaults**: no Node integration, context isolation, sandbox, strict navigation boundary
-- **Clean native window chrome**: the native title bar is hidden with Electron's official `titleBarStyle: "hidden"` + `titleBarOverlay` (Window Controls Overlay) — no icon / title / session title in the top-left, native min / max / close buttons preserved, native resize kept
+- **Desktop Caption Safe Area**: a dedicated ~32px DesktopShell caption lane above the DSH web content — the whole lane is the native drag region and the right side holds the native Windows controls (`titleBarStyle: "hidden"` + `titleBarOverlay`). The DSH page starts BELOW the caption, so Windows controls and DSH header UI never overlap (no icon / title / session title in the top-left; native min / max / close / resize kept; reload-safe injection)
 - Ships with the DSH black-style mark as the single app icon (`assets/icon-black.ico`, multi-size, transparent background) used by the desktop shortcut, the BrowserWindow, the Windows taskbar and Alt+Tab
 
 ## Architecture
@@ -149,6 +149,9 @@ lib/
   app.js              app-mode coordinator (exit decisions)
   electron/
     main.js           Electron main process (window, security defaults)
+    chrome.js         window-chrome configuration (caption safe area geometry,
+                      pure/testable: window options, caption CSS, drag lane,
+                      overlay theme)
     nav.js            navigation boundary (allow / open-external / deny)
     resolve.js        Electron binary resolution (Node module resolution)
 launch/
@@ -168,6 +171,9 @@ assets/
 test/
   lifecycle.test.mjs      lifecycle unit tests
   setup.test.mjs          setup / argument-parser unit tests
+  isolation.test.mjs      Desktop-vs-plain-DSH isolation tests
+  window.test.mjs         window-chrome / caption-geometry regression tests
+  icon.test.mjs           icon-asset regression tests
 ```
 
 ## Testing
@@ -180,7 +186,7 @@ node test\window.test.mjs
 node test\icon.test.mjs
 ```
 
-Current baseline: **lifecycle 20/20 PASS**, **setup 19/19 PASS**, **isolation 3/3 PASS**, **window 5/5 PASS**, **icon 3/3 PASS** (Node built-in `node:test`, no framework). `isolation.test.mjs` builds throwaway profiles under a temp `DSH_HOME` and verifies the Desktop-vs-plain-DSH failure boundary (I1: plain `dsh web` keeps Desktop rows disabled and spawns no owned Electron; I7: a corrupted disabled desktop entry does not break plain `dsh web`; I8: a malformed bundle patch is a documented loader-level boundary). `window.test.mjs` and `icon.test.mjs` guard the 0.1.2 taskbar-icon fix (BrowserWindow must use `icon-black.ico`; the transparent-icon workaround must stay gone).
+Current baseline: **lifecycle 20/20 PASS**, **setup 19/19 PASS**, **isolation 3/3 PASS**, **window 9/9 PASS**, **icon 3/3 PASS** (Node built-in `node:test`, no framework). `isolation.test.mjs` builds throwaway profiles under a temp `DSH_HOME` and verifies the Desktop-vs-plain-DSH failure boundary (I1: plain `dsh web` keeps Desktop rows disabled and spawns no owned Electron; I7: a corrupted disabled desktop entry does not break plain `dsh web`; I8: a malformed bundle patch is a documented loader-level boundary). `window.test.mjs` guards the caption safe-area contract (practical caption/drag height, drag lane height == DSH content inset, real `icon-black.ico`, native controls preserved, no transparent-icon workaround, reload-safe injection); `icon.test.mjs` guards the icon assets. Drag / header-collision behavior additionally requires real Windows manual verification (the source-level tests prove configuration, not feel).
 
 ## Scope / Non-goals
 

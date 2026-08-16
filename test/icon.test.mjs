@@ -1,5 +1,5 @@
 /**
- * dsh-desktop-shell — icon asset regression tests (v0.1.2).
+ * dsh-desktop-shell — icon asset regression tests (v0.1.3).
  * Run: node test/icon.test.mjs
  *
  * Guards the 0.1.2 icon architecture:

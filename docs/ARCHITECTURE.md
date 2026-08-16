@@ -11,7 +11,11 @@ lib/
   app.js              app-mode coordinator: loader.await → shell.open → ctx.appExit decision
   electron/
     main.js           Electron main: window, hardened webPreferences, single-instance,
-                      parent-PID watchdog, fail-closed loadURL
+                      parent-PID watchdog, fail-closed loadURL, caption chrome
+                      application (reload-safe)
+    chrome.js         window-chrome configuration (pure/testable): caption safe-area
+                      geometry, BrowserWindow options, caption CSS, drag lane JS,
+                      overlay theme helpers
     nav.js            navigation boundary: allow / open-external / deny
     resolve.js        Electron package/binary resolution via Node module resolution
 launch/
@@ -35,7 +39,7 @@ test/
   lifecycle.test.mjs      lifecycle unit tests (20/20)
   setup.test.mjs          setup/parser unit tests (19/19)
   isolation.test.mjs      Desktop-vs-plain-DSH isolation tests (3/3)
-  window.test.mjs         BrowserWindow chrome-config regression tests (5/5)
+  window.test.mjs         window-chrome / caption-geometry regression tests (9/9)
   icon.test.mjs           icon-asset regression tests (3/3)
 ```
 
@@ -84,31 +88,53 @@ runtime dependency of DSH:
   the whole profile boot — that is the plugin-loader layer's boundary, not
   something this bundle can or should repair.
 
-## Window chrome (0.1.2)
+## Window chrome (0.1.3 — Desktop Caption Safe Area)
 
 The window hides the native title bar with Electron's **official Windows
-mechanism** and keeps the **real DSH app icon**:
+mechanism**, keeps the **real DSH app icon**, and gives the DSH web content a
+**dedicated safe area** below the caption:
 
-- `icon: assets/icon-black.ico` → the Windows taskbar, Alt+Tab and the
+```
+BrowserWindow viewport
+├── caption safe area (CAPTION_HEIGHT_PX = 32)
+│   ├── draggable lane   — the whole caption strip (`-webkit-app-region: drag`)
+│   └── native Windows controls (titleBarOverlay, OS-drawn: min/max/close)
+└── DSH web content viewport — starts BELOW the caption (content inset)
+```
+
+- **Icon**: `icon: assets/icon-black.ico` → Windows taskbar, Alt+Tab and the
   running-window icon show the DSH mark. (0.1.1's transparent
-  `icon-window.ico` workaround is removed: it hid the title-bar icon but broke
-  the taskbar/Alt+Tab icon — `assets/icon-window.ico` is deleted and its
-  generator code is gone.)
-- `titleBarStyle: "hidden"` + `titleBarOverlay` (Window Controls Overlay):
-  the native title bar (icon + title text) is not drawn at all, while the
-  native min / max / close buttons remain (OS-drawn, top-right). No custom
-  HTML title bar / buttons were introduced.
-- `page-title-updated` is prevented → the DSH page title
+  `icon-window.ico` workaround is removed and must not return — it broke the
+  taskbar/Alt+Tab icon.)
+- **Official mechanism**: `titleBarStyle: "hidden"` + `titleBarOverlay`
+  (Window Controls Overlay): the native title bar (icon + title text) is not
+  drawn at all, while native min / max / close buttons remain (OS-drawn,
+  top-right). `titleBarOverlay.height` == `CAPTION_HEIGHT_PX` so the native
+  strip and the caption lane always agree. No custom HTML title bar / buttons.
+- **DSH content inset** (fixes the 0.1.2 overlap): injected CSS sets
+  `body { padding-top: var(--dsh-desktop-caption-height) }` and
+  `#root { height: calc(100vh - var(--dsh-desktop-caption-height)) }`, so the
+  Windows controls and the DSH header (Session log, breadcrumb, future plugin
+  utilities) never share the same physical area. The page's own background
+  fills the caption strip, so it blends with light/dark themes. (The DSH
+  frontend only uses `100vh` inside `max-height` rules and mounts into
+  `#root` with `height:100%` chains — the reduced root height cannot overflow.)
+- **Drag** (fixes the unusable 4px strip): the whole caption lane is the drag
+  region (idempotent container-level element, `CAPTION_LANE_ID`). Native
+  double-click maximize/restore comes from the platform drag behavior.
+- **page title**: `page-title-updated` is prevented → the DSH page title
   (`"<session> — DeepSeek Harness"`) never becomes the window title; the
   static `title: "DeepSeek Harness"` is used for the Alt+Tab / taskbar label.
-- Resize / maximize / restore / minimize stay native (`thickFrame`), including
-  `minWidth` / `minHeight`.
-- **Drag**: a hidden title bar has no native drag area, so the shell injects a
-  thin (4px) transparent `-webkit-app-region: drag` strip at the very top edge
-  of the page (`webContents.executeJavaScript` after load — container-level;
-  DSH source files are untouched and interactive elements sit below the
-  strip). The overlay's symbol color is matched to the page's actual color
-  scheme after load so the native buttons stay visible in dark/light themes.
+- **Reload-safe**: the caption CSS + lane are re-applied on every
+  `did-finish-load` (initial load, Ctrl+R, renderer reload, inner navigation);
+  the lane is idempotent and never duplicated.
+- **Theme**: the caption background uses the page's CSS variables (auto light/
+  dark); the native button symbols are matched via `setTitleBarOverlay` on
+  load and by a low-frequency (2.5s) runtime sync when DSH switches themes
+  without reloading.
+- **Geometry single source of truth**: `lib/electron/chrome.js` exports
+  `CAPTION_HEIGHT_PX` (32), which drives the overlay height, the drag lane
+  height AND the content inset — they can never drift apart.
 - Icon architecture (single source):
   `desktop shortcut IconLocation` = `icon-black.ico`,
   `BrowserWindow icon` = `icon-black.ico`,

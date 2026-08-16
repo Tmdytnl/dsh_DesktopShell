@@ -1,5 +1,5 @@
 /**
- * dsh-desktop-shell — Desktop setup (v0.1.2).
+ * dsh-desktop-shell — Desktop setup (v0.1.3).
  *
  * Development-stage setup only (NO installer: no MSI/NSIS/Squirrel).
  * Strict order — a failure at any step terminates BEFORE a shortcut is

@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.1.3 - 2026-08-16
+
+Window Chrome correctness release — Desktop Caption Safe Area.
+
+- Fix Window Controls Overlay overlapping the DSH session-header utilities
+  (Session log etc.): the whole DSH web content now starts BELOW a dedicated
+  Desktop caption safe area, so Windows controls and DSH header UI never share
+  the same physical area (no per-plugin fixes — any future header UI is safe).
+- Replace the unusable 4px drag strip with a practical caption-height drag
+  lane: the entire caption safe area (32px) is `-webkit-app-region: drag`
+  (native Windows double-click maximize/restore behavior included).
+- Keep the real `icon-black.ico` taskbar / Alt+Tab architecture from 0.1.2
+  (desktop shortcut / BrowserWindow / taskbar / Alt+Tab / running window).
+- Keep native Windows min / max / restore / close controls
+  (`titleBarStyle: "hidden"` + `titleBarOverlay`, official mechanism).
+- Make the caption injection reload-safe and idempotent: it is re-applied on
+  every `did-finish-load` (initial load, Ctrl+R, renderer reload, inner
+  navigation) and never duplicates the caption element.
+- The caption background blends with the DSH page theme (page CSS variables);
+  the native button symbols follow the theme on load and via a low-frequency
+  runtime sync when DSH switches light/dark without reloading.
+- Extract the chrome configuration into a testable pure module
+  (`lib/electron/chrome.js`) and upgrade the window regression suite: caption
+  height >= usable minimum (and > 4px), drag lane height == content inset
+  height, icon-black usage, native controls preserved, no transparent-icon
+  workaround, hardened webPreferences unchanged.
+- Failure isolation from plain `dsh web` is untouched (disabled rows,
+  ephemeral ports, owned-Electron attribution, optional quota assertion).
+- Real Windows manual verification required for drag and header collision
+  (see the 0.1.3 report).
+
 ## 0.1.2 - 2026-08-16
 
 Taskbar / Alt+Tab icon fix and test hardening.

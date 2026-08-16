@@ -1,5 +1,5 @@
 /**
- * dsh-desktop-shell — setup argument parsing & validation (v0.1.2).
+ * dsh-desktop-shell — setup argument parsing & validation (v0.1.3).
  *
  * Shared by scripts/install-desktop.mjs (runtime) and test/setup.test.mjs
  * (unit tests). No side effects, no dependencies — deliberately no
