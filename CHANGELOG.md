@@ -28,8 +28,9 @@ Window Chrome correctness release — Desktop Caption Safe Area.
   workaround, hardened webPreferences unchanged.
 - Failure isolation from plain `dsh web` is untouched (disabled rows,
   ephemeral ports, owned-Electron attribution, optional quota assertion).
-- Real Windows manual verification required for drag and header collision
-  (see the 0.1.3 report).
+- Real Windows manual verification required for drag and header collision —
+  completed and recorded in
+  [docs/reports/0.1.3-finalization-report.md](./docs/reports/0.1.3-finalization-report.md).
 
 ## 0.1.2 - 2026-08-16
 

@@ -41,12 +41,26 @@ This bundle is responsible for:
 - DSH web host integration
 - Windows launcher / desktop setup
 - Desktop lifecycle bridge (open / close → DSH exit)
+- Desktop window chrome: the native caption safe area, its drag region and the
+  Window Controls Overlay coordination
+
+**Renderer-side injection boundary.** DesktopShell does **not** customize DSH
+business UI or plugin UI. The only DOM/CSS it injects into the page is the
+minimal, container-level chrome wiring required for native window geometry:
+
+- the caption safe-area content inset (DSH starts below the caption)
+- the caption drag lane element
+- Window Controls Overlay coordination (overlay geometry / theme symbols)
+
+This is Desktop-only chrome geometry — it never touches DSH layout semantics,
+themes, components or plugin UI.
 
 It is **not** responsible for (these belong to a separate DSH client/UI plugin):
 
-- DSH Web UI theming / DOM / CSS injection
-- Quota widget UI or other plugin UI
-- Custom window title bar or in-page top icons
+- DSH Web UI theming / product UI customization
+- Conversation / Session log / quota / plugin business UI
+- A custom (HTML) title bar with re-implemented window controls
+- In-page top icons or branding
 
 ### Electron exit reason → DSH decision
 

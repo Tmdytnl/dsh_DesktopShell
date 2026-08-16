@@ -47,8 +47,35 @@ test/
 
 Both rows are installed **disabled**; `--patch launch/desktop-app.patch.yml` enables Desktop App Mode for one launch.
 
-- `desktop-shell` (`dsh-desktop-shell`, lib/shell.js) — pure host plugin: no client injection, no DOM/CSS/JS, no quota awareness. Injects the real `webServer`, provides the `desktopShell` service.
+- `desktop-shell` (`dsh-desktop-shell`, lib/shell.js) — pure host plugin: no DSH
+  business-UI awareness, no quota awareness. Injects the real `webServer`,
+  provides the `desktopShell` service. (Renderer-side DOM/CSS injection, if any,
+  lives in the Electron main's chrome wiring — see "Renderer injection
+  boundary" below — never in the host row.)
 - `desktop-app` (`dsh-desktop-shell/app`, lib/app.js) — disabled by default; reads `ctx.appExit` synchronously in `apply`, runs the open/exit decision in a background task.
+
+## Renderer injection boundary
+
+The ONLY renderer-side DOM/CSS injection performed by this bundle is the
+minimal **container chrome** wiring in `lib/electron/main.js` +
+`lib/electron/chrome.js`, executed inside the Desktop Electron window:
+
+```text
+DesktopShell
+├── Native Electron window lifecycle
+├── Desktop caption geometry (caption safe area, drag lane, content inset)
+├── minimal chrome-only renderer injection (caption CSS + drag-lane element)
+└── Windows launcher
+
+DSH / other plugins
+└── actual business UI (themes, components, Session log, quota, …)
+```
+
+The injected CSS reserves the native caption safe area (DSH content starts
+below it) and the injected element is the drag region. DesktopShell never
+touches DSH layout semantics, theme design, components or plugin UI — a future
+DSH header/plugin UI is safe by construction because the whole page is inset
+below the caption.
 
 ## Lifecycle
 
