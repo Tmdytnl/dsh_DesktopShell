@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.4 - 2026-08-20
+
+DSH rc.8 compatibility release — default-browser handoff.
+
+- DSH >= rc.8 opens the Web UI in the default browser on every `dsh web`
+  launch (`openBrowser` defaults to true). In Desktop App Mode the Electron
+  window IS the UI, so the launcher now passes `--no-open` and only the
+  desktop window opens (no stray browser tab).
+- `launch/desktop-launch.cmd`: launch command is now
+  `dsh web --patch <desktop-app.patch.yml> --port 0 --no-open`.
+- README / ARCHITECTURE updated to document the `--no-open` flag in the
+  manual debug command and the runtime chain.
+- Plain `dsh web` is unaffected and keeps the rc.8 default (browser opens).
+
 ## 0.1.3 - 2026-08-16
 
 Window Chrome correctness release — Desktop Caption Safe Area.

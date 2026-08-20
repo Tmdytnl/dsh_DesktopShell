@@ -152,8 +152,11 @@ Launcher logs (failures only): `%LOCALAPPDATA%\dsh-desktop-shell\logs\launcher.l
 For one-off debug launches:
 
 ```cmd
-dsh web --patch "%USERPROFILE%\.dsh\profiles\web\node_modules\dsh-desktop-shell\launch\desktop-app.patch.yml" --port 0
+dsh web --patch "%USERPROFILE%\.dsh\profiles\web\node_modules\dsh-desktop-shell\launch\desktop-app.patch.yml" --port 0 --no-open
 ```
+
+(`--no-open` suppresses the browser tab that `dsh >= rc.8` opens by default;
+the Electron window is the UI in Desktop App Mode.)
 
 ## Development
 

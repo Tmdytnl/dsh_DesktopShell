@@ -175,7 +175,7 @@ Desktop shortcut "DeepSeek Harness.lnk"
   → wscript.exe <pkg>\launch\launch-hidden.vbs   (hidden, exits immediately)
     → desktop-launch.cmd                          (hidden; preflight: patch exists,
        electron runtime ready, dsh on PATH — any failure logs + popup + exit 1)
-      → dsh web --patch <pkg>\launch\desktop-app.patch.yml --port 0
+      → dsh web --patch <pkg>\launch\desktop-app.patch.yml --port 0 --no-open
 ```
 
 The package is installed into a DSH profile as a local link (space-free junction on Windows).

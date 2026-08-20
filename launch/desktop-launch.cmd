@@ -7,7 +7,7 @@ rem Responsibilities (thin, debug-friendly, may be run directly):
 rem   1. resolve the installed package root (this folder's parent)
 rem   2. verify the Electron runtime (fail-fast, never silently downloads)
 rem   3. verify the dsh CLI resolves through PATH
-rem   4. run  dsh web --patch <desktop-app.patch.yml> --port 0
+rem   4. run  dsh web --patch <desktop-app.patch.yml> --port 0 --no-open
 rem      in the CURRENT working directory - the Windows shortcut's
 rem      Working Directory owns the workspace, NOT this script.
 rem
@@ -52,7 +52,9 @@ if errorlevel 1 (
 )
 
 rem ---- 4. launch Desktop App Mode in the current working directory ----
-dsh web --patch "%PATCH%" --port 0
+rem --no-open: dsh >= rc.8 opens the default browser by default; the Electron
+rem window IS the UI here, so suppress the browser tab.
+dsh web --patch "%PATCH%" --port 0 --no-open
 exit /b %errorlevel%
 
 rem ---- fail-fast terminal: log + popup, then exit 1 (never returns) ----
